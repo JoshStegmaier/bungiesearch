@@ -1,5 +1,9 @@
 import logging
 
+from six import iteritems
+
+from elasticsearch_dsl.analysis import Analyzer
+
 from bungiesearch.fields import AbstractField, django_field_to_index
 
 
@@ -63,11 +67,37 @@ class ModelIndex(object):
     def get_model(self):
         return self.model
 
-    def get_mapping(self):
+    def get_mapping(self, meta_fields=True):
         '''
+        Returns the mapping for the index as a dictionary.
+        :param meta_fields: Also include elasticsearch meta fields in the dictionary.
         :return: a dictionary which can be used to generate the elasticsearch index mapping for this doctype.
         '''
-        return {'properties': dict((name, field.json()) for name, field in self.fields.iteritems())}
+        return {'properties': dict((name, field.json()) for name, field in iteritems(self.fields) if meta_fields or name not in AbstractField.meta_fields)}
+
+    def collect_analysis(self):
+        '''
+        :return: a dictionary which is used to get the serialized analyzer definition from the analyzer class.
+        '''
+        analysis = {}
+        for field in self.fields.values():
+            for analyzer_name in ('analyzer', 'index_analyzer', 'search_analyzer'):
+                if not hasattr(field, analyzer_name):
+                    continue
+
+                analyzer = getattr(field, analyzer_name)
+
+                if not isinstance(analyzer, Analyzer):
+                    continue
+
+                definition = analyzer.get_analysis_definition()
+                if definition is None:
+                    continue
+
+                for key in definition:
+                    analysis.setdefault(key, {}).update(definition[key])
+
+        return analysis
 
     def serialize_object(self, obj, obj_pk=None):
         '''

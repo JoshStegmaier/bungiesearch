@@ -1,4 +1,8 @@
+from six import iteritems
+
 from django.template.defaultfilters import striptags
+
+from elasticsearch_dsl.analysis import Analyzer
 
 
 class AbstractField(object):
@@ -9,6 +13,7 @@ class AbstractField(object):
     Values are extracted using the `model_attr` or `eval_as` attribute.
     '''
     common_fields = ['index_name', 'store', 'index', 'boost', 'null_value', 'copy_to']
+    meta_fields = ['_index', '_uid', '_type', '_id']
     @property
     def fields(self):
         try:
@@ -77,7 +82,16 @@ class AbstractField(object):
         return getattr(obj, self.model_attr)
 
     def json(self):
-        return dict((attr, val) for attr, val in self.__dict__.iteritems() if attr not in ['eval_func', 'model_attr'])
+        json = {}
+        for attr, val in iteritems(self.__dict__):
+            if attr in ('eval_func', 'model_attr', 'template_name'):
+                continue
+            elif attr in ('analyzer', 'index_analyzer', 'search_analyzer') and isinstance(val, Analyzer):
+                json[attr] = val.to_dict()
+            else:
+                json[attr] = val
+
+        return json
 
 # All the following definitions could probably be done with better polymorphism.
 
