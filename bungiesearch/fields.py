@@ -1,4 +1,4 @@
-from six import iteritems
+from six import iteritems, string_types
 
 from django.template.defaultfilters import striptags
 
@@ -101,7 +101,19 @@ class StringField(AbstractField):
     defaults = {'analyzer': 'snowball'}
 
     def value(self, obj):
-        return striptags(super(StringField, self).value(obj))
+        value = super(StringField, self).value(obj)
+
+        if isinstance(value, string_types):
+            value = striptags(value)
+        else:
+            try:
+                values = []
+                for v in value:
+                    values.append(striptags(v))
+                value = values
+            except Exception as e:
+                value = striptags(value)
+        return value
 
     def __unicode__(self):
         return 'StringField'
